@@ -1,0 +1,83 @@
+#!/usr/bin/env python
+
+#  bell_test - Sends test codes to the block bell
+#
+#  Copyright (C) 2016 - Andrew Rawlins
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor,
+#  Boston, MA 02110-1301, USA.
+
+import sys
+import time
+
+# Local modules 
+import block_bell
+
+# Opening signal box
+block_bell.ring("5-5-5")
+time.sleep(5)
+# Run through all classes of train
+
+print "Train entering section"
+block_bell.ring("2")
+time.sleep(5)
+
+print "Class 1 train"		
+block_bell.ring("4")
+time.sleep(5)
+
+print "Class 2 train"		
+block_bell.ring("3-1")
+time.sleep(5)
+
+print "Class 3 train"		
+block_bell.ring("1-3-1")
+time.sleep(5)
+
+print "Class 4 train"		
+block_bell.ring("3-1-1")
+time.sleep(5)
+
+print "Class 5 train"		
+block_bell.ring("2-2-1")
+time.sleep(5)
+
+print "Class 6 train"		
+block_bell.ring("5")
+time.sleep(5)
+
+print "Class 7 train"		
+block_bell.ring("4-1")
+time.sleep(5)
+
+print "Class 8 train"		
+block_bell.ring("3-2")
+time.sleep(5)
+
+print "Class 9 train"		
+block_bell.ring("1-4")
+time.sleep(5)
+
+print "Class 0 train"		
+block_bell.ring("2-3")
+time.sleep(5)
+
+print "Out of Section"
+block_bell.ring("2-1")
+time.sleep(5)
+
+print "Box closed"
+block_bell.ring("7-5-5")
+

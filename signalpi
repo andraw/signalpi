@@ -1,0 +1,187 @@
+#!/usr/bin/env python
+
+#  signalpi - Operates a bell in a similar way to that of a block based
+#             signal box
+#
+#  Copyright (C) 2016 - Andrew Rawlins
+#
+#  This program is free software; you can redistribute it and/or modify
+#  it under the terms of the GNU General Public License as published by
+#  the Free Software Foundation; either version 2 of the License, or
+#  (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software
+#  Foundation, Inc., 51 Franklin Street, Fifth Floor,
+#  Boston, MA 02110-1301, USA.
+
+import logging
+import time, datetime
+import json
+import sys
+import stomp
+from time import sleep
+
+# Local modules 
+import block_bell
+import credentials
+import signalbox
+
+# Opening signal box
+block_bell.ring("5-5-5")
+
+class Listener(object):
+
+	def __init__(self, mq):
+		self._mq = mq
+
+	def on_message(self, headers, message):
+		
+		message_array = json.loads(message)
+
+		last_stomp_message = str(datetime.datetime.fromtimestamp(float(headers['timestamp'])/1000))
+
+		if signalbox.debug_feed == "SHOW_FEED_CONSOLE":
+			print "STOMP: recieved packet at %s" % (last_stomp_message)
+		if signalbox.debug_feed == "SHOW_FEED_SERIAL":
+			print "STOMP: recieved packet at %s" % (last_stomp_message)
+
+		for s in message_array:
+			for key, sig_data in s.iteritems():
+					
+				# We are only interested in the CA messages - train movements.
+				if key == 'CA_MSG':
+
+					signal_area = sig_data['area_id']
+					sig_from = sig_data['from']
+					sig_to = sig_data['to']
+					headcode = sig_data['descr']
+					timestamp = str(datetime.datetime.fromtimestamp(float(sig_data['time'])/1000))
+
+					if signal_area == signalbox.signal_area:
+					
+						# Start of with dealing with early warning	
+						if signalbox.early_warn_type == "HEADCODE_AT_SIG":
+							# Specified train passing our designated signal
+							if sig_to == signalbox.early_warn_signal and headcode == signalbox.early_warn_headcode:
+								block_bell.ring("2")
+							
+						if signalbox.early_warn_type == "ANY_PASS_SIG":
+							# Any train passing our designated signal
+							if sig_to == signalbox.early_warn_signal:
+								block_bell.ring("2")
+
+						if signalbox.early_warn_type == "HEADCODE":
+							# Specified train passing our designated signal
+							if headcode == signalbox.early_warn_headcode:
+								block_bell.ring("2")
+
+						if signalbox.debug_feed == "SHOW_FEED_CONSOLE":
+							print "CAMSG: %s from %s to %s at %s" % (headcode,sig_from,sig_to,timestamp)
+						if signalbox.debug_feed == "SHOW_FEED_SERIAL":
+							print "CAMSG: %s from %s to %s at %s" % (headcode,sig_from,sig_to,timestamp)
+
+						# Have we got a train at our distant?
+						if sig_to == signalbox.up_distant or sig_to == signalbox.down_distant:
+							block_bell.ring("2")
+
+						# Have we got a train at our home?
+						if sig_to == signalbox.up_home or sig_to == signalbox.down_home:
+
+							# Some frreight does not give a proper headcode, however the
+							# first digit is acurate as to the class of train helpfully.
+
+							# Calculate the class of train from the first letter of the 
+							# headcode and ring the bell
+					
+							if headcode[0] == "1":
+								# Express passenger train; nominated postal or parcels 
+								# train; breakdown or snowplough going to clear the line
+								block_bell.ring("4")
+
+							if headcode[0] == "2":
+								# Ordinary passenger train; breakdown train not going 
+								# to clear the line; officers special train
+								block_bell.ring("3-1")
+
+							if headcode[0] == "3":
+								# Freight train capable of running at more than 75 mph; 
+								# parcels train; nominated (priority) empty passenger 
+								# trains; autumn railhead treatment train 
+								block_bell.ring("1-3-1")
+
+							if headcode[0] == "4":
+								# Freight train that can run at up to 75 mph 
+								block_bell.ring("3-1-1")
+
+							if headcode[0] == "5":
+								# Empty coaching stock
+								block_bell.ring("2-2-1")
+
+							if headcode[0] == "6":
+								# Freight train that can run at up to 60 mph
+								block_bell.ring("5")
+
+							if headcode[0] == "7":
+								# Freight train that can run at up to 45 mph
+								block_bell.ring("4-1")
+
+							if headcode[0] == "8":
+								# Freight train that can run at, or is timed to run at, 
+								# 35 mph or less
+								block_bell.ring("3-2")
+
+							if headcode[0] == "9":
+								# Class 373 train (Eurostar); also used for any other 
+								# specially authorised train and all trains on the new 
+								# East London Line
+								block_bell.ring("1-4")
+
+							if headcode[0] == "0":
+								# Light locomotive or locomotives
+								block_bell.ring("2-3")
+
+
+						# Train out of section?
+						if sig_to == signalbox.up_oos or sig_to == signalbox.down_oos:
+							block_bell.ring("2-1")
+
+	
+
+while True:
+
+	try:						
+
+		mq = stomp.Connection(host_and_ports=[('datafeeds.networkrail.co.uk', 61618)],
+              					        keepalive=True,
+				                        vhost='datafeeds.networkrail.co.uk',
+				                        heartbeats=(10000, 5000))
+
+
+		mq.set_listener('', Listener(mq))
+
+		mq.start()
+		mq.connect(username=credentials.nr_username,
+		           passcode=credentials.nr_password,
+		           wait=True)
+
+		print(signalbox.nr_movement_feed)
+		mq.subscribe(signalbox.nr_movement_feed , 'pisig', ack='client-individual')
+
+		while mq.is_connected():
+			sleep(1)
+
+	except KeyboardInterrupt:
+		# Box closed
+		block_bell.ring("7-5-5")
+		sys.exit()
+
+	except:
+        	# Oh well, reconnect and keep going
+		continue
+
